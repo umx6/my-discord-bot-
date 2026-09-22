@@ -1,0 +1,331 @@
+const {
+    Client,
+    GatewayIntentBits
+} = require('discord.js');
+
+const {
+    joinVoiceChannel,
+    createAudioPlayer,
+    createAudioResource,
+    AudioPlayerStatus,
+    NoSubscriberBehavior
+} = require('@discordjs/voice');
+
+const play = require('@iamtraction/play-dl');
+const ffmpeg = require('ffmpeg-static');
+const { spawn } = require('child_process');
+
+// =========================
+// ضع توكن البوت هنا
+// =========================
+const TOKEN = 'MTU1MTQ4NzQ0MDkzNjUwNTM4NQ.G_uWjs.dnO9eX0rxGJBHZJ4IyBBrMNtcpV2fbTEn20ZgA';
+
+// =========================
+// إعداد البوت
+// =========================
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates
+    ]
+});
+
+// كل سيرفر له مشغل وقائمة خاصة به
+const servers = new Map();
+
+function getServerData(guildId) {
+    if (!servers.has(guildId)) {
+        const player = createAudioPlayer({
+            behaviors: {
+                noSubscriber: NoSubscriberBehavior.Pause
+            }
+        });
+
+        const data = {
+            player,
+            connection: null,
+            queue: [],
+            current: null,
+            loop: false,
+            playing: false
+        };
+
+        servers.set(guildId, data);
+
+        player.on(AudioPlayerStatus.Idle, async () => {
+            const server = servers.get(guildId);
+
+            if (!server) return;
+
+            if (server.loop && server.current) {
+                await playSong(guildId, server.current);
+            } else {
+                server.current = null;
+                server.playing = false;
+                await playNext(guildId);
+            }
+        });
+
+        player.on('error', error => {
+            console.error(`خطأ في تشغيل الصوت في ${guildId}:`, error);
+
+            const server = servers.get(guildId);
+
+            if (!server) return;
+
+            server.current = null;
+            server.playing = false;
+
+            playNext(guildId);
+        });
+    }
+
+    return servers.get(guildId);
+}
+
+// =========================
+// تشغيل الأغنية
+// =========================
+async function playSong(guildId, song) {
+    const server = getServerData(guildId);
+
+    try {
+        const stream = await play.stream(song.url);
+
+        const resource = createAudioResource(stream.stream, {
+            inputType: stream.type
+        });
+
+        server.current = song;
+        server.playing = true;
+
+        server.player.play(resource);
+
+        if (server.connection) {
+            server.connection.subscribe(server.player);
+        }
+
+        console.log(`تشغيل: ${song.title}`);
+
+    } catch (error) {
+        console.error('فشل تشغيل الأغنية:', error);
+
+        server.current = null;
+        server.playing = false;
+
+        await playNext(guildId);
+    }
+}
+
+// =========================
+// تشغيل الأغنية التالية
+// =========================
+async function playNext(guildId) {
+    const server = getServerData(guildId);
+
+    if (!server.queue.length) {
+        server.playing = false;
+        return;
+    }
+
+    const nextSong = server.queue.shift();
+
+    await playSong(guildId, nextSong);
+}
+
+// =========================
+// البحث عن أغنية
+// =========================
+async function searchSong(query) {
+    try {
+        const results = await play.search(query, {
+            limit: 1
+        });
+
+        if (!results || !results.length) {
+            return null;
+        }
+
+        const result = results[0];
+
+        return {
+            title: result.title,
+            url: result.url,
+            duration: result.durationRaw || 'غير معروف'
+        };
+
+    } catch (error) {
+        console.error('خطأ في البحث:', error);
+        return null;
+    }
+}
+
+// =========================
+// عند تشغيل البوت
+// =========================
+client.once('ready', () => {
+    console.log(`✅ تم تشغيل البوت: ${client.user.tag}`);
+});
+
+// =========================
+// استقبال الأوامر
+// =========================
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+    if (!message.guild) return;
+
+    const content = message.content.trim();
+    const guildId = message.guild.id;
+
+    const server = getServerData(guildId);
+
+    // =========================
+    // !join
+    // =========================
+    if (content === '!join') {
+        const voiceChannel = message.member.voice.channel;
+
+        if (!voiceChannel) {
+            return message.reply('❌ ادخل روم صوتي أولاً.');
+        }
+
+        try {
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: voiceChannel.guild.id,
+                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                selfDeaf: true
+            });
+
+            server.connection = connection;
+
+            connection.subscribe(server.player);
+
+            return message.reply(`✅ دخلت روم **${voiceChannel.name}**`);
+        } catch (error) {
+            console.error(error);
+            return message.reply('❌ حصل خطأ أثناء الدخول للروم.');
+        }
+    }
+
+    // =========================
+    // ش اسم الأغنية
+    // =========================
+    if (content.startsWith('ش ')) {
+        const query = content.slice(2).trim();
+
+        if (!query) {
+            return message.reply('❌ اكتب اسم الأغنية بعد ش.');
+        }
+
+        const voiceChannel = message.member.voice.channel;
+
+        if (!voiceChannel) {
+            return message.reply('❌ ادخل روم صوتي أولاً.');
+        }
+
+        if (!server.connection) {
+            try {
+                const connection = joinVoiceChannel({
+                    channelId: voiceChannel.id,
+                    guildId: voiceChannel.guild.id,
+                    adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                    selfDeaf: true
+                });
+
+                server.connection = connection;
+                connection.subscribe(server.player);
+
+            } catch (error) {
+                console.error(error);
+                return message.reply('❌ ما قدرت أدخل الروم الصوتي.');
+            }
+        }
+
+        await message.channel.send(`🔎 أبحث عن: **${query}** ...`);
+
+        const song = await searchSong(query);
+
+        if (!song) {
+            return message.reply('❌ ما لقيت الأغنية.');
+        }
+
+        server.queue.push(song);
+
+        if (!server.playing) {
+            await playNext(guildId);
+
+            return message.channel.send(
+                `🎵 الآن: **${song.title}**`
+            );
+        }
+
+        return message.channel.send(
+            `✅ تمت إضافة **${song.title}** إلى قائمة الانتظار.`
+        );
+    }
+
+    // =========================
+    // s = إيقاف مؤقت
+    // =========================
+    if (content === 's') {
+        if (!server.playing) {
+            return message.reply('❌ ما فيه أغنية شغالة.');
+        }
+
+        server.player.pause();
+
+        return message.reply('⏸️ تم إيقاف الأغنية مؤقتًا.');
+    }
+
+    // =========================
+    // re = استكمال
+    // =========================
+    if (content === 're') {
+        if (!server.playing) {
+            return message.reply('❌ ما فيه أغنية متوقفة مؤقتًا.');
+        }
+
+        server.player.unpause();
+
+        return message.reply('▶️ تم استكمال الأغنية.');
+    }
+
+    // =========================
+    // ss = تخطي
+    // =========================
+    if (content === 'ss') {
+        if (!server.current) {
+            return message.reply('❌ ما فيه أغنية شغالة.');
+        }
+
+        server.loop = false;
+        server.player.stop();
+
+        return message.reply('⏭️ تم تخطي الأغنية.');
+    }
+
+    // =========================
+    // loop = تكرار الأغنية الحالية
+    // =========================
+    if (content === 'loop') {
+        if (!server.current) {
+            return message.reply('❌ ما فيه أغنية شغالة.');
+        }
+
+        server.loop = !server.loop;
+
+        if (server.loop) {
+            return message.reply('🔁 تم تشغيل التكرار.');
+        } else {
+            return message.reply('➡️ تم إيقاف التكرار.');
+        }
+    }
+});
+
+// =========================
+// تسجيل الدخول
+// =========================
+client.login(TOKEN);
