@@ -18,7 +18,7 @@ const { spawn } = require('child_process');
 // =========================
 // ضع توكن البوت هنا
 // =========================
- client.login(process.env,TOKEN);
+
 
 // =========================
 // إعداد البوت
@@ -328,4 +328,4 @@ client.on('messageCreate', async message => {
 // =========================
 // تسجيل الدخول
 // =========================
-client.login(TOKEN);
+client.login(process.env.TOKEN);
