@@ -196,7 +196,7 @@ client.on('messageCreate', async message => {
                 channelId: voiceChannel.id,
                 guildId: voiceChannel.guild.id,
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-                selfDeaf: true
+                selfDeaf: false
             });
 
             server.connection = connection;
@@ -232,7 +232,7 @@ client.on('messageCreate', async message => {
                     channelId: voiceChannel.id,
                     guildId: voiceChannel.guild.id,
                     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-                    selfDeaf: true
+                    selfDeaf: false
                 });
 
                 server.connection = connection;
