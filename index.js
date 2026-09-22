@@ -8,21 +8,17 @@ const {
     createAudioPlayer,
     createAudioResource,
     AudioPlayerStatus,
-    NoSubscriberBehavior
+    NoSubscriberBehavior,
+    StreamType
 } = require('@discordjs/voice');
 
 const play = require('@iamtraction/play-dl');
-const ffmpeg = require('ffmpeg-static');
-const { spawn } = require('child_process');
-
-// =========================
-// ضع توكن البوت هنا
-// =========================
-
+const ytdl = require('@distube/ytdl-core');
 
 // =========================
 // إعداد البوت
 // =========================
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -32,7 +28,6 @@ const client = new Client({
     ]
 });
 
-// كل سيرفر له مشغل وقائمة خاصة به
 const servers = new Map();
 
 function getServerData(guildId) {
@@ -69,7 +64,7 @@ function getServerData(guildId) {
         });
 
         player.on('error', error => {
-            console.error(`خطأ في تشغيل الصوت في ${guildId}:`, error);
+            console.error(`❌ خطأ في مشغل الصوت في ${guildId}:`, error);
 
             const server = servers.get(guildId);
 
@@ -88,14 +83,26 @@ function getServerData(guildId) {
 // =========================
 // تشغيل الأغنية
 // =========================
+
 async function playSong(guildId, song) {
     const server = getServerData(guildId);
 
     try {
-        const stream = await play.stream(song.url);
+        console.log(`🎵 محاولة تشغيل: ${song.title}`);
+        console.log(`🔗 الرابط: ${song.url}`);
 
-        const resource = createAudioResource(stream.stream, {
-            inputType: stream.type
+        const stream = ytdl(song.url, {
+            filter: 'audioonly',
+            quality: 'highestaudio',
+            highWaterMark: 1 << 25
+        });
+
+        stream.on('error', error => {
+            console.error('❌ خطأ من YouTube stream:', error);
+        });
+
+        const resource = createAudioResource(stream, {
+            inputType: StreamType.WebmOpus
         });
 
         server.current = song;
@@ -107,12 +114,12 @@ async function playSong(guildId, song) {
             server.connection.subscribe(server.player);
         }
 
-        console.log(`تشغيل: ${song.title}`);
+        console.log(`✅ بدأ تشغيل: ${song.title}`);
 
     } catch (error) {
-        console.error('فشل تشغيل الأغنية:', error);
- console.error('❌ تفاصيل الخطأ:', error?.stack || error?.message || error);
-        
+        console.error('❌ فشل تشغيل الأغنية:', error);
+        console.error(error?.stack || error?.message || error);
+
         server.current = null;
         server.playing = false;
 
@@ -121,8 +128,9 @@ async function playSong(guildId, song) {
 }
 
 // =========================
-// تشغيل الأغنية التالية
+// الأغنية التالية
 // =========================
+
 async function playNext(guildId) {
     const server = getServerData(guildId);
 
@@ -137,8 +145,9 @@ async function playNext(guildId) {
 }
 
 // =========================
-// البحث عن أغنية
+// البحث عن الأغنية
 // =========================
+
 async function searchSong(query) {
     try {
         const results = await play.search(query, {
@@ -158,21 +167,23 @@ async function searchSong(query) {
         };
 
     } catch (error) {
-        console.error('خطأ في البحث:', error);
+        console.error('❌ خطأ في البحث:', error);
         return null;
     }
 }
 
 // =========================
-// عند تشغيل البوت
+// تشغيل البوت
 // =========================
+
 client.once('ready', () => {
     console.log(`✅ تم تشغيل البوت: ${client.user.tag}`);
 });
 
 // =========================
-// استقبال الأوامر
+// الأوامر
 // =========================
+
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     if (!message.guild) return;
@@ -182,9 +193,7 @@ client.on('messageCreate', async message => {
 
     const server = getServerData(guildId);
 
-    // =========================
     // !join
-    // =========================
     if (content === '!join') {
         const voiceChannel = message.member.voice.channel;
 
@@ -205,15 +214,14 @@ client.on('messageCreate', async message => {
             connection.subscribe(server.player);
 
             return message.reply(`✅ دخلت روم **${voiceChannel.name}**`);
+
         } catch (error) {
             console.error(error);
             return message.reply('❌ حصل خطأ أثناء الدخول للروم.');
         }
     }
 
-    // =========================
     // ش اسم الأغنية
-    // =========================
     if (content.startsWith('ش ')) {
         const query = content.slice(2).trim();
 
@@ -268,9 +276,7 @@ client.on('messageCreate', async message => {
         );
     }
 
-    // =========================
     // s = إيقاف مؤقت
-    // =========================
     if (content === 's') {
         if (!server.playing) {
             return message.reply('❌ ما فيه أغنية شغالة.');
@@ -281,9 +287,7 @@ client.on('messageCreate', async message => {
         return message.reply('⏸️ تم إيقاف الأغنية مؤقتًا.');
     }
 
-    // =========================
     // re = استكمال
-    // =========================
     if (content === 're') {
         if (!server.playing) {
             return message.reply('❌ ما فيه أغنية متوقفة مؤقتًا.');
@@ -294,9 +298,7 @@ client.on('messageCreate', async message => {
         return message.reply('▶️ تم استكمال الأغنية.');
     }
 
-    // =========================
     // ss = تخطي
-    // =========================
     if (content === 'ss') {
         if (!server.current) {
             return message.reply('❌ ما فيه أغنية شغالة.');
@@ -308,9 +310,7 @@ client.on('messageCreate', async message => {
         return message.reply('⏭️ تم تخطي الأغنية.');
     }
 
-    // =========================
-    // loop = تكرار الأغنية الحالية
-    // =========================
+    // loop
     if (content === 'loop') {
         if (!server.current) {
             return message.reply('❌ ما فيه أغنية شغالة.');
@@ -329,4 +329,5 @@ client.on('messageCreate', async message => {
 // =========================
 // تسجيل الدخول
 // =========================
+
 client.login(process.env.TOKEN);
