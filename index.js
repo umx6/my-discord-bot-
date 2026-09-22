@@ -18,7 +18,7 @@ const { spawn } = require('child_process');
 // =========================
 // ضع توكن البوت هنا
 // =========================
-const TOKEN = 'MTU1MTQ4NzQ0MDkzNjUwNTM4NQ.G_uWjs.dnO9eX0rxGJBHZJ4IyBBrMNtcpV2fbTEn20ZgA';
+ client.login(process.env,TOKEN);
 
 // =========================
 // إعداد البوت
