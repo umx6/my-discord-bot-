@@ -111,7 +111,8 @@ async function playSong(guildId, song) {
 
     } catch (error) {
         console.error('فشل تشغيل الأغنية:', error);
-
+ console.error('❌ تفاصيل الخطأ:', error?.stack || error?.message || error);
+        
         server.current = null;
         server.playing = false;
 
