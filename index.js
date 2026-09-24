@@ -105,14 +105,13 @@ async function playSong(guildId, song) {
     '--cookies', '/home/container/www.youtube.com_cookies (1).txt',
     '--no-playlist',
     '--js-runtimes', `deno:${DENO_PATH}`,
+    '--extractor-args', 'youtube:player_client=tv',
     '-f', 'ba[ext=webm][acodec=opus]',
     '-o', '-',
     song.url
 ], {
-
-
-            stdio: ['ignore', 'pipe', 'pipe']
-        });
+    stdio: ['ignore', 'pipe', 'pipe']
+});
 
         stream.stderr.on('data', data => {
             console.log(`yt-dlp: ${data.toString().trim()}`);
