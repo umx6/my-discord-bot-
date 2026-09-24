@@ -100,11 +100,13 @@ async function playSong(guildId, song) {
         const { spawn } = require('child_process');
 
         const stream = spawn(YTDLP_PATH, [
-            '--no-playlist',
-            '-f', 'ba[ext=webm][acodec=opus]',
-            '-o', '-',
-            song.url
-        ], {
+    '--cookies', '/home/container/www.youtube.com_cookies.txt',
+    '--no-playlist',
+    '-f', 'ba[ext=webm][acodec=opus]',
+    '-o', '-',
+    song.url
+], {
+
             stdio: ['ignore', 'pipe', 'pipe']
         });
 
