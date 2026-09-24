@@ -15,7 +15,6 @@
     "@distube/spotify": "^2.0.2",
     "@distube/youtube": "^1.0.4",
     "@distube/yt-dlp": "^2.0.1",
-    "@distube/ytdl-core": "^4.16.12",
     "@iamtraction/play-dl": "^2.0.1",
     "discord.js": "^14.27.0",
     "distube": "^5.2.3",
