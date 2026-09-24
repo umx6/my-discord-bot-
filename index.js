@@ -20,6 +20,8 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 const YTDLP_PATH = '/home/container/node_modules/@distube/yt-dlp/bin/yt-dlp';
+const DENO_PATH = '/home/container/.npm/_npx/05b6ef7b13673c57/node_modules/deno/deno';
+
 
 // =========================
 // إعداد البوت
@@ -102,10 +104,12 @@ async function playSong(guildId, song) {
         const stream = spawn(YTDLP_PATH, [
     '--cookies', '/home/container/www.youtube.com_cookies.txt',
     '--no-playlist',
+    '--js-runtimes', `deno:${DENO_PATH}`,
     '-f', 'ba[ext=webm][acodec=opus]',
     '-o', '-',
     song.url
 ], {
+
 
             stdio: ['ignore', 'pipe', 'pipe']
         });
