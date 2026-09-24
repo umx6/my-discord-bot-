@@ -97,17 +97,26 @@ async function playSong(guildId, song) {
         console.log(`🎵 محاولة تشغيل: ${song.title}`);
         console.log(`🔗 الرابط: ${song.url}`);
 
-        const stream = ytdl(song.url, {
-            filter: 'audioonly',
-            quality: 'highestaudio',
-            highWaterMark: 1 << 25
+        const { spawn } = require('child_process');
+
+        const stream = spawn(YTDLP_PATH, [
+            '--no-playlist',
+            '-f', 'ba[ext=webm][acodec=opus]',
+            '-o', '-',
+            song.url
+        ], {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+
+        stream.stderr.on('data', data => {
+            console.log(`yt-dlp: ${data.toString().trim()}`);
         });
 
         stream.on('error', error => {
-            console.error('❌ خطأ من YouTube stream:', error);
+            console.error('❌ خطأ من yt-dlp:', error);
         });
 
-        const resource = createAudioResource(stream, {
+        const resource = createAudioResource(stream.stdout, {
             inputType: StreamType.WebmOpus
         });
 
