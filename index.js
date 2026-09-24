@@ -13,7 +13,13 @@ const {
 } = require('@discordjs/voice');
 
 const play = require('@iamtraction/play-dl');
-const ytdl = require('@distube/ytdl-core');
+
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
+
+const YTDLP_PATH = '/home/container/node_modules/@distube/yt-dlp/bin/yt-dlp';
 
 // =========================
 // إعداد البوت
